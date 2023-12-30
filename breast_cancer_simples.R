@@ -1,10 +1,15 @@
 library(tensorflow)
 library(keras)
+k_clear_session()
 library(tidyverse)
 library(tidymodels)
 library(rpart)
 library(rpart.plot)
 library(caret)
+
+# backend <- "theano"
+# k_set_image_data_format("channels_last")
+# Sys.setenv(KERAS_BACKEND = backend)
 
 base <- read.csv("data/wdbc.csv")
 

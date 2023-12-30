@@ -1,10 +1,10 @@
-library(tensorflow)
-library(keras)
-library(tidyverse)
-library(tidymodels)
-library(rpart)
-library(rpart.plot)
-library(caret)
+source("export_libs.R")
+source("build_rna/build_rna.R")
+
+backend <- "tensorflow"
+k_set_image_data_format("channels_last")
+Sys.setenv(KERAS_BACKEND = backend)
+
 
 base <- read.csv("data/wdbc.csv")
 
@@ -15,101 +15,54 @@ base <- base %>%
             TRUE ~ 0
         ),
         Diagnosis = as.numeric(Diagnosis)
-    )
+    ) %>%
+    select(-all_of("id"))
 
-# criar base de teste e de treinamento
-porcentagem_treinamento <- 0.75
-
-base_treinamento <- base %>%
-    sample_frac(porcentagem_treinamento)
-
-base_teste <- base %>%
-    anti_join(base_treinamento, by = "id")
-
-base_treinamento$id <- NULL
-base_teste$id <- NULL
-
-base_treinamento_feature <- base_treinamento %>%
+base_feature <- base %>%
     select(-all_of("Diagnosis"))
-base_treinamento_outcome <- base_treinamento %>%
-    select(all_of("Diagnosis"))
-base_teste_feature <- base_teste %>%
-    select(-all_of("Diagnosis"))
-base_teste_outcome <- base_teste %>%
+base_outcome <- base %>%
     select(all_of("Diagnosis"))
 
-num_input <- ncol(base_treinamento_feature)
-num_output <- ncol(base_treinamento_outcome)
+num_input <- ncol(base_feature)
+num_output <- ncol(base_outcome)
 num_layer <- round((num_input + num_output) / 2)
 
-model <- keras_model_sequential() %>%
-    layer_dense(
-        units = num_layer, activation = "relu",
-        kernel_initializer = "random_uniform",
-        input_shape = num_input
-    ) %>%
-    layer_dense(
-        units = num_layer, activation = "relu",
-        kernel_initializer = "random_uniform"
-    ) %>%
-    layer_dense(
-        units = num_output, activation = "sigmoid"
+a <- build_RNA()
+
+# constriuondo agora a validação cruzada
+# Defina os índices para a validação cruzada
+set.seed(123)
+folds <- createFolds(base_outcome$Diagnosis, k = 10) # 5-fold cross-validation
+
+# Inicialize vetores para armazenar resultados
+accuracy_values <- numeric(length(folds))
+
+# Iteração sobre os folds para treinar e avaliar o modelo
+for (i in seq_along(folds)) {
+    # Separa os dados em treino e teste para esta fold
+    train_indices <- unlist(folds[-i])
+    test_indices <- folds[[i]]
+
+    x_train <- as.matrix(base_feature[train_indices, ])
+    y_train <- as.matrix(base_outcome[train_indices, ])
+    x_test <- as.matrix(base_feature[test_indices, ])
+    y_test <- as.matrix(base_outcome[test_indices, ])
+
+    # Constrói o modelo
+    model <- build_RNA()
+
+    # Treina o modelo
+    model %>% fit(
+        x_train, y_train,
+        epochs = 10,
+        batch_size = 32,
+        verbose = 0
     )
 
-custom_optimizer <- optimizer_adam(
-    learning_rate = 0.001,
-    weight_decay = 0.0001,
-    clipvalue = 0.5
-)
+    # Avalia o modelo
+    scores <- model %>% evaluate(x_test, y_test, verbose = 0)
+    accuracy_values[i] <- scores[[2]]
+}
 
-model %>% compile(
-    loss = "binary_crossentropy", # Função de perda para classificação multiclasse
-    optimizer = custom_optimizer, # Otimizador, por exemplo, Adam
-    metrics = list("binary_accuracy") # Métrica a ser avaliada durante o treinamento
-)
-
-model %>% fit(
-    as.matrix(base_treinamento_feature),
-    as.matrix(base_treinamento_outcome),
-    epochs = 100, # Número de épocas de treinamento
-    batch_size = 10 # Tamanho do batch
-)
-
-evaluate <- model %>%
-    evaluate(as.matrix(base_teste_feature),
-        as.matrix(base_teste_outcome),
-        batch_size = 10
-    )
-
-previsao <- model %>%
-    predict(as.matrix(base_teste_feature),
-        batch_size = 100
-    ) %>%
-    as_tibble()
-
-previsao$V1 <- previsao$V1 <= 0.5
-base_teste_outcome$Diagnosis <- base_teste_outcome$Diagnosis == 0
-
-
-matriz_confusao <- table(
-    base_teste_outcome$Diagnosis,
-    previsao$V1
-)
-cf <- confusionMatrix(matriz_confusao)
-
-# library(ggplot2)
-
-# # Criar um gráfico de barras para representar a matriz de confusão
-# ggplot(
-#     data = as.data.frame(cf$table),
-#     aes(x = value_real, y = predicao, fill = Freq)
-# ) +
-#     geom_tile() +
-#     geom_text(aes(label = Freq)) +
-#     labs(
-#         title = "Matriz de Confusão",
-#         x = "Real",
-#         y = "Predito"
-#     ) +
-#     scale_fill_gradient(low = "lightblue", high = "darkblue") +
-#     theme_minimal()
+mean_accuracy <- mean(accuracy_values)
+print(paste("Accuracy:", mean_accuracy))
