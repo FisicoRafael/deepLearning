@@ -66,3 +66,6 @@ for (i in seq_along(folds)) {
 
 mean_accuracy <- mean(accuracy_values)
 print(paste("Accuracy:", mean_accuracy))
+
+
+soma()
