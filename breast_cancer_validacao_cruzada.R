@@ -27,7 +27,22 @@ num_input <- ncol(base_feature)
 num_output <- ncol(base_outcome)
 num_layer <- round((num_input + num_output) / 2)
 
-a <- build_RNA()
+
+config_camadas <- list(
+    neuronios_por_camada = c(num_layer, num_layer, 1),
+    ativacao_por_camada = c("relu", "relu", "sigmoid"),
+    dropout = c(0.2)
+)
+
+config_compile <- list(
+    num_entradas = num_input,
+    num_saidas = num_output,
+    otimizador = "adam",
+    funcao_loss = "binary_crossentropy",
+    metrica = list("accuracy"),
+    kernel_inicializador = "glorot_uniform"
+)
+
 
 # constriuondo agora a validação cruzada
 # Defina os índices para a validação cruzada
@@ -49,7 +64,10 @@ for (i in seq_along(folds)) {
     y_test <- as.matrix(base_outcome[test_indices, ])
 
     # Constrói o modelo
-    model <- build_RNA()
+    model <- build_RNA(
+        config_camadas = config_camadas,
+        config_compile = config_compile
+    )
 
     # Treina o modelo
     model %>% fit(
@@ -61,11 +79,11 @@ for (i in seq_along(folds)) {
 
     # Avalia o modelo
     scores <- model %>% evaluate(x_test, y_test, verbose = 0)
-    accuracy_values[i] <- scores[[2]]
+    accuracy_values[i] <- scores[[1]]
 }
 
 mean_accuracy <- mean(accuracy_values)
 print(paste("Accuracy:", mean_accuracy))
 
 
-soma()
+

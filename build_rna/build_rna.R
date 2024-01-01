@@ -1,4 +1,3 @@
-
 #' Título da função
 #'
 #' Descrição detalhada da função, seus parâmetros e retorno.
@@ -11,42 +10,78 @@
 #' @examples
 #' nome_da_funcao(3, 5)
 #'
-
-
-
 build_RNA <- function(
     config_camadas,
     config_compile) {
     # validação
 
     # Validando os parâmetros de configuração de camadas
+    para_camadas <- c("neuronios_por_camada", "ativacao_por_camada", "dropout")
     if (!is.list(config_camadas) ||
-        !all(names(config_camadas) %in% c("neuronios_por_camada", "ativacao_por_camada", "dropout"))) {
-        stop("Os parâmetros de configuração de camadas devem ser fornecidos como uma lista contendo 'neuronios_por_camada', 'ativacao_por_camada' e 'dropout'.")
+        !all(para_camadas %in% names(config_camadas))) {
+        stop("Os parâmetros de configuração das CAMADAS devem ser fornecidos como uma lista contendo 'neuronios_por_camada', 'ativacao_por_camada' e 'dropout'.")
     }
 
+    para_compile <- c("num_entradas", "num_saidas", "otimizador", "funcao_loss", "metrica", "kernel_inicializador")
+    if (!is.list(config_compile) ||
+        !all(para_compile %in% names(config_compile))) {
+        stop("Os parâmetros de configuração do COMPILE devem ser fornecidos como uma lista contendo 'num_entradas', 'num_saidas', 'otimizador','funcao_loss','metrica' e 'kernel_inicializador'.")
+    }
 
+    modelo <- keras_model_sequential()
 
-    model <- keras_model_sequential()
+    for (i in 1:length(config_camadas$neuronios_por_camada)) {
+        if (i == 1) {
+            modelo %>%
+                layer_dense(
+                    units = config_camadas$neuronios_por_camada[i], input_shape = c(config_compile$num_entradas),
+                    activation = config_camadas$ativacao_por_camada[i],
+                    kernel_initializer = config_compile$kernel_inicializador
+                )
+        } else {
+            if (!is.null(config_camadas$dropout) && !is.na(config_camadas$dropout[i - 1])) {
+                # print(config_camadas$dropout[i - 1])
+                modelo %>%
+                    layer_dense(
+                        units = config_camadas$neuronios_por_camada[i], activation = config_camadas$ativacao_por_camada[i]
+                    ) %>%
+                    layer_dropout(rate = config_camadas$dropout[i - 1])
+            } else {
+                modelo %>%
+                    layer_dense(
+                        units = config_camadas$neuronios_por_camada[i], activation = config_camadas$ativacao_por_camada[i]
+                    )
+            }
+        }
+    }
 
-    layer_dense(
-        units = neurons, activation = activation,
-        kernel_initializer = kernel_initializer,
-        input_shape = num_input
-    ) %>%
-        layer_dropout(0.2) %>%
-        layer_dense(
-            units = neurons, activation = "relu",
-            kernel_initializer = "random_uniform"
-        ) %>%
-        layer_dense(
-            units = num_output, activation = "sigmoid"
-        ) %>%
+    modelo <- modelo %>%
         compile(
-            loss = "binary_crossentropy", # Função de perda para classificação multiclasse
-            optimizer = optimezer, # Otimizador, por exemplo, Adam
-            metrics = list("binary_accuracy") # Métrica a ser avaliada durante o treinamento
+            loss = config_compile$funcao_loss, # Função de perda para classificação multiclasse
+            optimizer = config_compile$optimizer, # Otimizador, por exemplo, Adam
+            metrics = config_compile$metrics # Métrica a ser avaliada durante o treinamento
         )
 
-    return(model)
+    return(modelo)
 }
+
+# config_camadas_2 <- list(
+#     neuronios_por_camada = c(2, 3, 1),
+#     ativacao_por_camada = c("relu", "relu", "sigmoid"),
+#     dropout = c()
+# )
+
+# config_compile_2 <- list(
+#     num_entradas = 10,
+#     num_saidas = 1,
+#     otimizador = "adam",
+#     funcao_loss = "binary_crossentropy",
+#     metrica = list("accuracy"),
+#     kernel_inicializador = "glorot_uniform"
+# )
+
+
+# build_RNA(
+#     config_camadas = config_camadas_2,
+#     config_compile = config_compile_2
+# )
