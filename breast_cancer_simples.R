@@ -1,16 +1,15 @@
+# Load the libraries
 library(tensorflow)
 library(keras)
 k_clear_session()
 library(tidyverse)
-library(tidymodels)
+
 library(rpart)
 library(rpart.plot)
 library(caret)
 
-# backend <- "theano"
-# k_set_image_data_format("channels_last")
-# Sys.setenv(KERAS_BACKEND = backend)
 
+#Load the dataframe
 base <- read.csv("data/wdbc.csv")
 
 base <- base %>%
@@ -22,7 +21,7 @@ base <- base %>%
         Diagnosis = as.numeric(Diagnosis)
     )
 
-# criar base de teste e de treinamento
+# Create training dataframe and test dataframe
 porcentagem_treinamento <- 0.75
 
 base_treinamento <- base %>%
@@ -34,6 +33,7 @@ base_teste <- base %>%
 base_treinamento$id <- NULL
 base_teste$id <- NULL
 
+#
 base_treinamento_feature <- base_treinamento %>%
     select(-all_of("Diagnosis"))
 base_treinamento_outcome <- base_treinamento %>%
@@ -43,10 +43,12 @@ base_teste_feature <- base_teste %>%
 base_teste_outcome <- base_teste %>%
     select(all_of("Diagnosis"))
 
+#
 num_input <- ncol(base_treinamento_feature)
 num_output <- ncol(base_treinamento_outcome)
 num_layer <- round((num_input + num_output) / 2)
 
+#Building the neural network
 model <- keras_model_sequential() %>%
     layer_dense(
         units = num_layer, activation = "relu",
@@ -68,15 +70,16 @@ custom_optimizer <- optimizer_adam(
 )
 
 model %>% compile(
-    loss = "binary_crossentropy", # Função de perda para classificação multiclasse
-    optimizer = custom_optimizer, # Otimizador, por exemplo, Adam
-    metrics = list("binary_accuracy") # Métrica a ser avaliada durante o treinamento
+    loss = "binary_crossentropy", # Loss Function for Multiclass Classification
+    optimizer = custom_optimizer, # Optimizer, e.g. Adam
+    metrics = list("binary_accuracy") # Metric to be evaluated during training
 )
 
+# Carry out training
 model %>% fit(
     as.matrix(base_treinamento_feature),
     as.matrix(base_treinamento_outcome),
-    epochs = 100, # Número de épocas de treinamento
+    epochs = 20, # Número de épocas de treinamento
     batch_size = 10 # Tamanho do batch
 )
 
